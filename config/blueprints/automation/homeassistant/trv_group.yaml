@@ -1,0 +1,59 @@
+blueprint:
+  name: Thermostatic Radiator Valve Group
+  description: Sync Themperature Set Commands between TRVs
+  domain: automation
+  input:
+    trvs:
+      name: Thermostatic Radiator Valve
+      description: Needs to be a Popp or Danfoss Zigbee TRV
+      selector:
+        entity:
+          multiple: true
+          domain: climate
+
+    setpoint_tracker:
+      name: Room Setpoint
+      description: Needs a helper to save the temperature setpoint
+      selector:
+        entity:
+          domain: input_number
+
+    sync_timeout:
+      name: Sync Timeout
+      description: Maximum time between changing one TRV and triggering this automation
+      selector:
+        number:
+      default: 30
+
+mode: single
+
+trigger_variables:
+  trvs: !input 'trvs'
+  setpoint_tracker: !input 'setpoint_tracker'
+  sync_timeout: !input 'sync_timeout'
+
+variables:
+  trv_setpoint: >
+    {% from 'trv_tools.jinja' import setpoint_change %}
+    {{setpoint_change(trvs, setpoint_tracker, sync_timeout)|float}}
+
+trigger:
+  - platform: template
+    value_template: >
+      {% from 'trv_tools.jinja' import setpoint_change %}
+      {{ (setpoint_change(trvs, setpoint_tracker, sync_timeout)|float) != -80 }}
+
+action:
+  - repeat:
+      for_each: !input 'trvs'
+      sequence:
+        - service: climate.set_temperature
+          data:
+            temperature: "{{trv_setpoint}}"
+          target:
+            entity_id: "{{repeat.item}}"
+  - service: input_number.set_value
+    data:
+      value: "{{trv_setpoint}}"
+    target:
+      entity_id: "{{setpoint_tracker}}"

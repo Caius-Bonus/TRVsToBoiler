@@ -1,0 +1,88 @@
+blueprint:
+  name: Sync external temperature
+  description: Sync TRV external temperature with external temperature sensor
+  domain: automation
+  input:
+    trvs:
+      name: Thermostatic Radiator Valve
+      description: Needs to be a Popp or Danfoss Zigbee TRV
+      selector:
+        device:
+          multiple: true
+
+    external_temp:
+      name: External temperature sensor
+      description: Select the external temperature sensor
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+
+    external_temp_suffix:
+      name: Entity Suffix for the Temperature Input
+      description: Suffix of the external temperature input of the TRV
+      selector:
+        text:
+      default: "external_temperature_sensor"
+
+    max_interval:
+      name: Maximum Interval
+      description: Maximum update interval in seconds
+      selector:
+        number:
+      default: 360
+
+    min_temp_diff:
+      name: Minimum Temperature Difference
+      description: Minimum difference between original and new temperature of TRV input
+      selector:
+        number:
+          step: 0.01
+          min: 0.0
+          max: 80.0
+      default: 0.1
+mode: single
+
+trigger_variables:
+  external_temperature_sensor: !input 'external_temp'
+  external_temp_suffix: !input 'external_temp_suffix'
+  max_interval: !input 'max_interval'
+  min_temp_diff: !input 'min_temp_diff'
+
+trigger:
+  - platform: state
+    entity_id: !input 'external_temp'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+
+condition:
+  - condition: template
+    value_template: "{{ has_value(external_temperature_sensor)|bool }}"
+  - condition: template
+    value_template: >
+        {% from 'entity_tools.jinja' import automation_triggered_non_recent %}
+        {{ automation_triggered_non_recent(this, max_interval)|bool }}
+
+action:
+  - repeat:
+      for_each: !input 'trvs'
+      sequence:
+        - variables:
+            temp_input_entity: >
+              {% from 'entity_tools.jinja' import get_entity %}
+              {{ get_entity(repeat.item, external_temp_suffix) }}
+        - if:
+            - condition: template
+              value_template: "{{ has_value(temp_input_entity)|bool }}"
+            - condition: template
+              value_template: >
+                {% from 'number_tools.jinja' import difference %}
+                {{ min_temp_diff <= difference(external_temperature_sensor, temp_input_entity)|float }}
+          then:
+            - service: number.set_value
+              target:
+                entity_id: "{{ temp_input_entity }}"
+              data:
+                value: "{{states(external_temperature_sensor)|float}}"

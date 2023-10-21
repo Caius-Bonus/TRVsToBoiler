@@ -1,0 +1,59 @@
+{# TRV Tools #}
+{# Contains Specific Tools for getting information from multiple TRVs (Should actually be contained in blueprints) #}
+
+{#
+trvs: List[String] (list of device ids)
+heat_required_suffix: String
+Return Type: int (has to be converted)
+#}
+{% macro total_pi_heating_demand(trvs, heat_required_suffix) %}
+  {% from 'entity_tools.jinja' import get_entity %}
+
+  {# namespace to cross for loop scope #}
+  {% set ns = namespace(total_pi_heating_demand=0) %}
+
+  {%- for device_id in trvs %}
+    {% if device_entities(device_id) != [] %}
+
+      {% if not heat_required_suffix or states(get_entity(device_id, heat_required_suffix)) == 'on' %}
+        {% set ns.total_pi_heating_demand = ns.total_pi_heating_demand + (states(get_entity(device_id, 'pi_heating_demand'))|int) %}
+      {% endif %}
+
+    {% endif %}
+  {% endfor %}
+
+  {{ns.total_pi_heating_demand}}
+{% endmacro %}
+
+{#
+trvs: List[String] (List of entity ids)
+setpoint_entity: String
+max_time: int
+Return Type: int (has to be converted)
+#}
+{% macro setpoint_change(trvs, setpoint_entity, max_time) %}
+  {# namespace to cross for loop scope #}
+  {% set ns = namespace(setpoint=-80, last_change=utcnow() - timedelta( seconds=max_time )) %}
+
+  {%- for entity_id in trvs %}
+    {% if has_value(entity_id) %}
+
+      {% set entity_temp = state_attr(entity_id, "temperature") | float %}
+      {% set setpoint_room = states(setpoint_entity) | float %}
+
+      {# If there is a difference between helper and trv #}
+      {% if setpoint_room != entity_temp %}
+
+        {# If there it is newer than the previous selected trv or max_time #}
+        {% if states[entity_id].last_updated is defined and ns.last_change < states[entity_id].last_updated %}
+          {% set ns.setpoint = entity_temp %}
+          {% set ns.last_change = states[entity_id].last_updated %}
+        {% endif %}
+
+      {% endif %}
+
+    {% endif %}
+  {% endfor %}
+
+  {{ns.setpoint}}
+{% endmacro %}

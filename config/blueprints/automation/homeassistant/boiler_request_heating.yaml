@@ -1,0 +1,159 @@
+blueprint:
+  name: Boiler Request Heat
+  description: Request heat from the boiler IF one TRV needs heat and is open far enough
+  domain: automation
+  input:
+    trvs:
+      name: Thermostatic Radiator Valve
+      description: A Thermostatic Radiator Valve on a radiator
+      selector:
+        device:
+          multiple: true
+
+    outside_temperature:
+      name: Outside Temperature
+      description: A numerical sensor for outside temperature
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+
+    hot_water:
+      name: Hot Water
+      description: Hot water usage sensor (used to turn off Heating when using Hot Water)
+      selector:
+        entity:
+           domain: binary_sensor
+      default: binary_sensor.slave_dhw_active_boiler_opentherm_gateway
+
+    opentherm_id:
+      name: Opentherm Gateway ID
+      description: the id assigned to the opentherm gateway
+      selector:
+        text:
+      default: opentherm_gateway
+
+    hot_water_delay:
+      name: Hot Water Delay
+      description: Time to wait after using hot water in seconds
+      selector:
+        number:
+      default: 180
+
+    max_temperature:
+      name: Maximum Outside Temperature
+      description: The temperature considered warm enough
+      selector:
+        number:
+          min: -50
+          max: 50
+      default: 17
+
+    min_flow_trv:
+      name: Minimum flow
+      description: Minimum percentage of flow for a TRV
+      selector:
+        number:
+          min: 0
+          max: 100
+      default: 50
+
+    ch_temp:
+      name: Central Heating Temperature
+      description: Temperature of the water for the radiators
+      selector:
+        number:
+          min: 20
+          max: 85
+      default: 65
+
+    modulation:
+      name: Gas Modulation
+      description: percentage of gas to flow
+      selector:
+        number:
+          min: 0
+          max: 100
+      default: 100
+
+    heat_required_suffix:
+      name: Entity Suffix for Heat Required
+      description: Suffix of the heat required attribute of the trv (ignored if empty)
+      selector:
+        text:
+      default: "heat_required"
+
+mode: single
+
+trigger_variables:
+  trvs: !input 'trvs'
+  min_flow_trv: !input 'min_flow_trv'
+  heat_required_suffix: !input 'heat_required_suffix'
+  max_temperature: !input 'max_temperature'
+  outside_temperature: !input 'outside_temperature'
+  hot_water: !input 'hot_water'
+  hot_water_delay: !input 'hot_water_delay'
+
+trigger:
+  # trigger periodical heat request every 30seconds
+  - platform: time_pattern
+    id: periodical
+    seconds: /30
+
+  # trigger closed if total pi heating demand is below min_flow_trv
+  - platform: template
+    id: closed
+    value_template: >
+        {% from 'trv_tools.jinja' import total_pi_heating_demand %}
+        {{ total_pi_heating_demand(trvs, heat_required_suffix)|int < min_flow_trv }}
+
+  - platform: state
+    id: hot_water
+    entity_id:
+      - !input 'hot_water'
+    to: "on"
+
+action:
+  - if:
+      - condition: trigger
+        id: periodical
+      # if total pi heating demand higher than min_flow_trv
+      - condition: template
+        value_template: >
+            {% from 'trv_tools.jinja' import total_pi_heating_demand %}
+            {{ min_flow_trv <= total_pi_heating_demand(trvs, heat_required_suffix)|int }}
+      # if last update of temperature was more than 3 hours ago or temperature is below max_temperature
+      - condition: template
+        value_template: >
+          {% from 'entity_tools.jinja' import entity_updated_non_recent %}
+          {{ entity_updated_non_recent(outside_temperature, 10800)|bool or ((states(outside_temperature)|float) < max_temperature) }}
+      # if hot water has been off longer than hot water delay
+      - condition: template
+        value_template: >
+          {% from 'entity_tools.jinja' import entity_updated_non_recent %}
+          {{entity_updated_non_recent(hot_water, hot_water_delay)|bool and states(hot_water) != "on" }}
+    then:
+      # turn on boiler
+      - service: opentherm_gw.set_control_setpoint
+        data:
+          gateway_id: !input 'opentherm_id'
+          temperature: !input 'ch_temp'
+      - service: opentherm_gw.set_max_modulation
+        data:
+          gateway_id: !input 'opentherm_id'
+          level: !input 'modulation'
+
+  - if:
+      - condition: or
+        conditions:
+          - condition: trigger
+            id: closed
+          - condition: trigger
+            id: hot_water
+    then:
+      # turn off boiler
+      - service: opentherm_gw.set_control_setpoint
+        data:
+          gateway_id: !input 'opentherm_id'
+          temperature: 0
+

@@ -1,0 +1,47 @@
+{# Entity Tools #}
+{# Contains general tools for getting information from an entity or getting an entity #}
+
+{#
+    device_id: String
+    name: String
+    Return Type: String
+#}
+{% macro get_entity(device_id, name) %}{{
+  (device_entities(device_id) | select('match', ".*_"+name+"$") | list)[0]
+}}{% endmacro %}
+
+{#
+    device_id: String
+    type: String
+    name: String
+    Return Type: String
+#}
+{% macro get_typed_entity(device_id, type, name) %}{{
+  (device_entities(device_id) | select('match', type+"\\..*_"+name+"$") | list)[0]
+}}{% endmacro %}
+
+{#
+    state_object: State Object
+    seconds: int | str
+    Return Type: bool (has to be converted)
+#}
+{% macro automation_triggered_non_recent(state_object, seconds) %}
+  {% if state_object.attributes.last_triggered is defined %}
+    {{ timedelta(seconds=seconds|int) < (utcnow() - state_object.attributes.last_triggered) }}
+  {% else %}
+    {{ True }}
+  {% endif %}
+{% endmacro %}
+
+{#
+    entity: String
+    seconds: int
+    Return Type: bool (has to be converted)
+#}
+{% macro entity_updated_non_recent(entity, seconds) %}
+  {% if states[entity].last_updated is defined %}
+    {{ (timedelta(seconds=seconds|int) < (utcnow() - states[entity].last_updated)) }}
+  {% else %}
+    {{ True }}
+  {% endif %}
+{% endmacro %}

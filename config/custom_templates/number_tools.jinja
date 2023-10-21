@@ -1,0 +1,31 @@
+{# Number Tools #}
+{# General Tools for dealing with numbers #}
+
+{#
+test: int
+min: int
+max: int
+low: int
+high: int
+Return Type: bool (has to be converted)
+
+inclusive intervals: [min, max] and [low, high]
+#}
+{% macro circular_range(test, min, max, low, high) %}
+  {% if min <= max %}
+    {{ min <= test and test <= max }}
+  {% else %}
+    {{ (low <= test and test <= min) or (max <= test and test <= high) }}
+  {% endif %}
+{% endmacro %}
+
+{#
+entity_1: String
+entity_2: String
+Return Type: int (has to be converted)
+
+inclusive intervals: [min, max] and [low, high]
+#}
+{% macro difference(entity_1, entity_2) %}{{
+  ( (states(entity_1)|float) - (states(entity_2)|float) ) | abs
+}}{% endmacro %}
