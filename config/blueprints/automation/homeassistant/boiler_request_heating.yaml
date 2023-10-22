@@ -5,7 +5,7 @@ blueprint:
   input:
     trvs:
       name: Thermostatic Radiator Valve
-      description: A Thermostatic Radiator Valve on a radiator
+      description: All Thermostatic Radiator Valves in the House
       selector:
         device:
           multiple: true

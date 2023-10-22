@@ -5,7 +5,7 @@ blueprint:
   input:
     trvs:
       name: Thermostatic Radiator Valve
-      description: Needs to be a Popp or Danfoss Zigbee TRV
+      description: Thermostatic Radiator Valves in the same room
       selector:
         entity:
           multiple: true
