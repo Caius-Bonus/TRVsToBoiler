@@ -24,12 +24,17 @@ Smart TRVs provide a way to close the valve, a way to set the temperature for a 
 ## Specifics
 
 Currently used valves (not guarantee):
-  Danfoss Ally (and derivatives): Zigbee Connection and runs well and long on Ni-Mh batteries (might complain about the voltage, but it will work if you have high quality batteries that don't have high self-discharge).
+  - Danfoss Ally (and derivatives): Zigbee Connection and runs well and long on Ni-Mh batteries (might complain about the voltage, but it will work if you have high quality batteries that don't have high self-discharge).
 
 The 3 Blueprints provided are:
-  Boiler Request Heating:
+  - Boiler Request Heating:
+  
     This requests heat from the boiler when one of the TRVs requests heat.
-  Sync TRV External Temp:
+    
+  - Sync TRV External Temp:
+
     This synchronizes the external temperature sensor between the TRVs in the room.
-  TRV Group: 
+    
+  - TRV Group:
+
     This synchronizes the setpoint between TRV in the same room after a change.
